@@ -3,6 +3,9 @@ import pickle
 import random
 
 import numpy as np
+import torch
+
+from .Model import *
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
@@ -22,10 +25,10 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
+
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
-        weights = np.random.rand(len(ACTIONS))
-        self.model = weights / weights.sum()
+        self.model = DQN()
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -41,15 +44,12 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-    # todo Exploration vs exploitation
-    random_prob = .1
-    if self.train and random.random() < random_prob:
-        self.logger.debug("Choosing action purely at random.")
-        # 80%: walk in any direction. 10% wait. 10% bomb.
-        return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])
+    # TODO Exploration vs exploitation
 
-    self.logger.debug("Querying model for action.")
-    return np.random.choice(ACTIONS, p=self.model)
+    features = state_to_features(game_state)
+
+    self.logger.debug("Querying model for action:")
+    return ACTIONS[self.model.choose_action(features)]
 
 
 def state_to_features(game_state: dict) -> np.array:
@@ -94,4 +94,3 @@ def get_field(game_state: dict, field_with_bombs) -> np.array:
     sliced_field = field_with_bombs[left_top_y:right_bottom_y + 1, left_top_x:right_bottom_x + 1]
 
     return sliced_field
-

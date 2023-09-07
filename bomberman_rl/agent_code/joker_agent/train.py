@@ -10,12 +10,10 @@ from .callbacks import state_to_features
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
-# Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 3  # keep only ... last transitions
-RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
+TRANSITION_HISTORY_SIZE = 1000
 
 # Events
-PLACEHOLDER_EVENT = "PLACEHOLDER"
+CREATES_TO_DESTROY = "PLACEHOLDER"
 
 
 def setup_training(self):
@@ -27,8 +25,9 @@ def setup_training(self):
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
     # Example: Setup an array that will note transition tuples
-    # (s, a, r, s')
-    self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
+    # (s, a, s', r)
+    self.model.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
+
 
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
@@ -50,12 +49,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
-    # Idea: Add your own events to hand out rewards
-    if ...:
-        events.append(PLACEHOLDER_EVENT)
-
-    # state_to_features is defined in callbacks.py
-    self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
+    # Stores the current tansition
+    self.model.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -72,7 +67,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     :param self: The same object that is passed to all of your callbacks.
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
-    self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
+    self.model.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
@@ -90,20 +85,34 @@ def reward_from_events(self, events: List[str]) -> int:
         e.COIN_COLLECTED: 10,
         e.KILLED_OPPONENT: 50,
 
-        e.MOVED_RIGHT: -1,
-        e.MOVED_LEFT: -1,
-        e.MOVED_UP: -1,
-        e.MOVED_DOWN: -1,
-        e.WAITED: -1,
-        e.BOMB_DROPPED: -1,
-        e.INVALID_ACTION: -10,
+        e.MOVED_RIGHT: 0,
+        e.MOVED_LEFT: 0,
+        e.MOVED_UP: 0,
+        e.MOVED_DOWN: 0,
+        e.WAITED: -10,
+        e.BOMB_DROPPED: 10,
+        e.INVALID_ACTION: -200,
         
-        e.KILLED_SELF: 0,
+        e.KILLED_SELF: -500,
         e.GOT_KILLED: -500,
     }
     reward_sum = 0
     for event in events:
         if event in game_rewards:
             reward_sum += game_rewards[event]
+
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum
+
+"""def create_to_destroy(game_state):
+    player_pos = np.array(game_state["self"][3])
+    destroyed_crates = 0
+    for direction in STEP:
+        for length in range(1, 4):
+            beam = direction*length + player_pos
+            obj = field[beam[0], beam[1]]
+            if obj == -1:
+                break
+            if (obj == 1) and future_explosion_map[beam[0], beam[1]]==1: # we will ge the crate destroyed
+                destroyed_crates += 1
+    return destroyed_crates"""
