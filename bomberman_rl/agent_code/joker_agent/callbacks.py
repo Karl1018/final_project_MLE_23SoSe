@@ -64,20 +64,41 @@ def state_to_features(game_state: dict) -> np.array:
     what it contains.
 
     :param game_state:  A dictionary describing the current game board.
-    :return: np.array
+    :return: the field map with the position of agent, bombs, coins and explosion range 
     """
     # This is the dict before the game begins and after it ends
     if game_state is None:
         return None
     
-    # Put the bombs into field
+    # Put the position of bombs into field (-2)
     bombs = game_state['bombs']
-    field_with_bombs = game_state['field']
+    field_with_all = game_state['field']
     for bomb in bombs:
         bomb_position = list(bomb)[0]
-        field_with_bombs[bomb_position[0], bomb_position[1]] = -2
+        field_with_all[bomb_position[0], bomb_position[1]] = -2
     
-    return field_with_bombs
+    # Put the position of agent into field (6)
+    agent = game_state['self']
+    agent_position = list(agent)[3]
+    field_with_all[agent_position[0],agent_position[1]] = 6
+
+    # Put the position of coins into field (2)
+    coins = game_state['coins']
+    for coin in coins:
+        coin_position = list(coin)
+        field_with_all[coin_position[0], coin_position[1]] = 2
+    
+    # Put the explosion range into field (-3)
+    explosion_map = game_state['explosion_map']
+    for x in range(explosion_map.shape[0]):
+        for y in range(explosion_map.shape[1]):
+            if explosion_map[x, y] > 0:
+                field_with_all[x,y] = -3
+
+    # Split the boundaries in the field
+    field_with_all = field_with_all[1:-1, 1:-1]
+    
+    return field_with_all
 
 def get_field(game_state: dict, field_with_bombs) -> np.array:
     agent = game_state['self']
