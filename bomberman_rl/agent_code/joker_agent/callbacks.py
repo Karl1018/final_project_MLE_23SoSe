@@ -44,15 +44,34 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-    # TODO Exploration vs exploitation
+    # TODO: better Exploration vs exploitation
 
-    features = state_to_features(game_state)
+    features = state_to_features(self, game_state)
+    self.logger.debug(f"Current state: {features}")
+    if np.random.rand() <= EPSILON:
+        actions_value = self.model.get_action(features)
+        self.logger.debug(f"Output from model: {actions_value}")
+        action = ACTIONS[torch.argmax(actions_value)]
+        self.logger.debug(f"Query model for action: {action}")
+    else:
+        action = ACTIONS[np.random.randint(0, len(ACTIONS))]
+        self.logger.debug(f"Choose action at random: {action}")
+    return action
 
-    self.logger.debug("Querying model for action:")
-    return ACTIONS[self.model.choose_action(features)]
+def destructible_crate_count(game_state: dict):
+    player_pos = np.array(game_state["self"][3])
+    destructible_crate = 0
+    for direction in np.array([[0,1], [0,-1], [1,0], [-1,0]]):
+        for distance in range(1, 4):
+            impact_subregion = direction * distance + player_pos
+            pos = get_field(game_state)[impact_subregion[0], impact_subregion[1]]
+            if pos == -1:
+                break
+            if pos == 1:
+                destructible_crate += 1
+    return destructible_crate
 
-
-def state_to_features(game_state: dict) -> np.array:
+def state_to_features(self, game_state: dict) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*
 
@@ -98,9 +117,12 @@ def state_to_features(game_state: dict) -> np.array:
     # Split the boundaries in the field
     field_with_all = field_with_all[1:-1, 1:-1]
     
+    #field = get_field(game_state)
+    self.destructible_crate = destructible_crate_count(game_state)
+
     return field_with_all
 
-def get_field(game_state: dict, field_with_bombs) -> np.array:
+def get_cropped_field(game_state: dict, field_with_bombs) -> np.array:
     agent = game_state['self']
     agent_position = list(agent)[3]
     agent_pos_x = agent_position[0]
@@ -115,3 +137,13 @@ def get_field(game_state: dict, field_with_bombs) -> np.array:
     sliced_field = field_with_bombs[left_top_y:right_bottom_y + 1, left_top_x:right_bottom_x + 1]
 
     return sliced_field
+
+def get_field(game_state: dict) -> np.array:
+    # Put the bombs into field
+    bombs = game_state['bombs']
+    field_with_bombs = game_state['field']
+    for bomb in bombs:
+        bomb_position = list(bomb)[0]
+        field_with_bombs[bomb_position[0], bomb_position[1]] = -2
+
+    return field_with_bombs

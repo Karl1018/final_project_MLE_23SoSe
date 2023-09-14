@@ -1,10 +1,11 @@
 from collections import namedtuple, deque
 
 import pickle
+import numpy as np
 from typing import List
 
 import events as e
-from .callbacks import state_to_features
+from .callbacks import *
 
 # This is only an example!
 Transition = namedtuple('Transition',
@@ -29,7 +30,6 @@ def setup_training(self):
     self.model.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
 
 
-
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
     Called once per step to allow intermediate rewards based on game events.
@@ -48,10 +48,12 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     :param events: The events that occurred when going from  `old_game_state` to `new_game_state`
     """
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
-
+    """r1 = (env.x_threshold - abs(x)) / env.x_threshold - 0.8
+    r2 = (env.theta_threshold_radians - abs(theta)) / env.theta_threshold_radians - 0.5
+    r_new = r1 + r2"""
     # Stores the current tansition
-    self.model.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
-
+    self.model.transitions.append(Transition(state_to_features(self, old_game_state), self_action, state_to_features(self, new_game_state), reward_from_events(self, events)))
+    self.model.learn()
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -67,8 +69,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     :param self: The same object that is passed to all of your callbacks.
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
-    self.model.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
-
+    self.model.transitions.append(Transition(state_to_features(self, last_game_state), last_action, None, reward_from_events(self, events)))
+    self.model.learn()
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
         pickle.dump(self.model, file)
@@ -90,7 +92,7 @@ def reward_from_events(self, events: List[str]) -> int:
         e.MOVED_UP: 0,
         e.MOVED_DOWN: 0,
         e.WAITED: -10,
-        e.BOMB_DROPPED: 10,
+        e.BOMB_DROPPED: -1,
         e.INVALID_ACTION: -200,
         
         e.KILLED_SELF: -500,
@@ -100,19 +102,10 @@ def reward_from_events(self, events: List[str]) -> int:
     for event in events:
         if event in game_rewards:
             reward_sum += game_rewards[event]
+        if e.BOMB_DROPPED in events:
+            reward_sum += self.destructible_crate * 50
 
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum
 
-"""def create_to_destroy(game_state):
-    player_pos = np.array(game_state["self"][3])
-    destroyed_crates = 0
-    for direction in STEP:
-        for length in range(1, 4):
-            beam = direction*length + player_pos
-            obj = field[beam[0], beam[1]]
-            if obj == -1:
-                break
-            if (obj == 1) and future_explosion_map[beam[0], beam[1]]==1: # we will ge the crate destroyed
-                destroyed_crates += 1
-    return destroyed_crates"""
+
