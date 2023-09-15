@@ -108,4 +108,15 @@ def reward_from_events(self, events: List[str]) -> int:
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum
 
+# Computing cumulative discounted future reward
+def calculate_n_step_rewards(transition_batch, n, gamma):
+    n_step_rewards = 0
+    #discount factor你看看定多少呢？
+    discount_factor = 1.0
 
+    for i in range(n):
+        if i < len(transition_batch):
+            n_step_rewards += discount_factor * transition_batch[i].reward
+            discount_factor *= gamma
+
+    return n_step_rewards
