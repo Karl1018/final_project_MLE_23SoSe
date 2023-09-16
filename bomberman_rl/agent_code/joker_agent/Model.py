@@ -50,32 +50,7 @@ class DQN():
 
         self.optimizer = torch.optim.Adam(self.evaluation_network.parameters(), lr=LEARNING_RATE)
         self.loss_func = nn.MSELoss()
-
-    """TODO: @heychuisme: Please implement in following format:
-    def calculate_n_step_rewards(transitions: List[Transition], n: int, gamma: float): -> None
-
-    This function will calculate and then update the rewards of each stored transition (Transition.reward) according to n-step TD Q-learning.
-    Please move the whole function to train.py if possible.
-    
-    :param transitions: Transition list to be updated.
-    :param n: Rewards up to n steps in the future will be considered.
-    :param gamma: Disconting factor.
-    
-    :return: None
-    """
-    # Computing cumulative discounted future reward
-    def calculate_n_step_rewards(transition, n, gamma):
-        discount_factor = 1 #第一个R(t)不需要乘以gamma：G = R(t) + γ * R(t+1) + γ^2 * R(t+2) + γ^3 * R(t+3) + ... + γ^(n-1) * R(t+n-1)
-        n_step_reward = 0
-        n_step_rewards_list = [] 
-        for t in range(len(transition)):
-            for i in range(n):
-                if t + i < len(transition):
-                    n_step_reward += discount_factor * transition[t + i].reward
-                    discount_factor *= gamma
-            n_step_rewards_list.append(n_step_reward)
-
-        return n_step_rewards_list
+        
 
     def learn(self):
 

@@ -108,14 +108,21 @@ def reward_from_events(self, events: List[str]) -> int:
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum
 
-# # Computing cumulative discounted future reward
-# def calculate_n_step_rewards(transition_batch, n, gamma):
-#     n_step_rewards = 0
-#     discount_factor = gamma 
-
-#     for i in range(n):
-#         if i < len(transition_batch):
-#             n_step_rewards += discount_factor * transition_batch[i].reward
-#             discount_factor *= gamma
-
-#     return n_step_rewards
+def calculate_n_step_rewards(transitions: List[Transition], n: int, gamma: float) -> None:
+    """
+    This function will calculate and then update the rewards of each stored transition (Transition.reward) according to n-step TD Q-learning.
+            
+    :param transitions: Transition list to be updated.
+    :param n: Rewards up to n steps in the future will be considered.
+    :param gamma: Disconting factor.
+    
+    :return: None
+    """
+    n_step_reward = 0
+    n_step_rewards_list = [] 
+    for t in range(len(transitions)):
+        for i in range(n):
+            if t + i < len(transitions):
+                n_step_reward += (gamma ** i) * transitions[t + i].reward
+        n_step_rewards_list.append(n_step_reward)
+    return n_step_rewards_list
