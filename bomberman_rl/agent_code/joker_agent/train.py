@@ -118,11 +118,10 @@ def calculate_n_step_rewards(transitions: List[Transition], n: int, gamma: float
     
     :return: None
     """
-    n_step_reward = 0
-    n_step_rewards_list = [] 
     for t in range(len(transitions)):
+        n_step_reward = 0
         for i in range(n):
             if t + i < len(transitions):
                 n_step_reward += (gamma ** i) * transitions[t + i].reward
-        n_step_rewards_list.append(n_step_reward)
-    return n_step_rewards_list
+        transitions[t].reward = n_step_reward
+
