@@ -41,6 +41,7 @@ class Network(nn.Module):
         return self.fc2(x)
 
 class DQN():
+
     def __init__(self):
 
         self.evaluation_network, self.target_network = Network(), Network()
@@ -50,7 +51,19 @@ class DQN():
         self.optimizer = torch.optim.Adam(self.evaluation_network.parameters(), lr=LEARNING_RATE)
         self.loss_func = nn.MSELoss()
 
+    # Computing cumulative discounted future reward
+    def calculate_n_step_rewards(transition, n, gamma):
+        discount_factor = 1 #第一个R(t)不需要乘以gamma：G = R(t) + γ * R(t+1) + γ^2 * R(t+2) + γ^3 * R(t+3) + ... + γ^(n-1) * R(t+n-1)
+        n_step_reward = 0
+        n_step_rewards_list = [] 
+        for t in range(len(transition)):
+            for i in range(n):
+                if t + i < len(transition):
+                    n_step_reward += discount_factor * transition[t + i].reward
+                    discount_factor *= gamma
+            n_step_rewards_list.append(n_step_reward)
 
+        return n_step_rewards_list
 
     def learn(self):
 
@@ -63,9 +76,10 @@ class DQN():
         Q_targets = []
         n = 4
 
+        # Calculate n step reward(gamma不知道定多少)你自己传参吧栓Q
+        n_step_rewards = calculate_n_step_rewards(self.transitions, n, GAMMA)
+
         for transition in batch:
-            # Calculate n step reward(gamma不知道定多少)
-            n_step_rewards = calculate_n_step_rewards(transition, n, GAMMA)
             Q_evaluate = self.evaluation_network(torch.tensor(transition.state).unsqueeze(0))[0, INDEX_ACTIONS[transition.action]]
             Q_target = n_step_rewards #改
 
