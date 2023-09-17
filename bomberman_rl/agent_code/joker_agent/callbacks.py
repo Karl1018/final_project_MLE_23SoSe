@@ -83,126 +83,69 @@ def state_to_features(self, game_state: dict) -> np.array:
     what it contains.
 
     :param game_state:  A dictionary describing the current game board.
-    :return: the field map with the position of agent, bombs, coins and explosion range 
+    :return: the field map with the position of agents 
     """
     # This is the dict before the game begins and after it ends
     if game_state is None:
         return None
     
-    field_with_all = game_state['field']
-
-    # Put the position of bombs into field (-2)
-    bombs = game_state['bombs']
-    for bomb in bombs:
-        bomb_position = list(bomb)[0]
-        field_with_all[bomb_position[0], bomb_position[1]] = -2
+    basic_field_map = game_state['field']
     
     # Put the position of agent into field (6)
     agent = game_state['self']
     agent_position = list(agent)[3]
-    field_with_all[agent_position[0],agent_position[1]] = 6
+    basic_field_map[agent_position[0],agent_position[1]] = 6
+
+    # Split the boundaries in the field
+    basic_field_map = basic_field_map[1:-1, 1:-1]
+    
+    #field = get_field(game_state)
+    self.destructible_crate = destructible_crate_count(game_state)
+
+    return basic_field_map
+
+def features_with_coins(self, basic_field_map, game_state: dict) -> np.array:
+    """
+    This function provide a field map with basic information and the position of coins
+
+    :basic_field_map: a field map with basic information
+    :param game_state:  A dictionary describing the current game board.
+    :return: the field map with the position of coins 
+    """
+    field_with_coins = basic_field_map
 
     # Put the position of coins into field (2)
     coins = game_state['coins']
     for coin in coins:
         coin_position = list(coin)
-        field_with_all[coin_position[0], coin_position[1]] = 2
-    
-    # Put the explosion range into field (-3)
-    explosion_map = game_state['explosion_map']
-    for x in range(explosion_map.shape[0]):
-        for y in range(explosion_map.shape[1]):
-            if explosion_map[x, y] > 0:
-                field_with_all[x,y] = -3
+        field_with_coins[coin_position[0], coin_position[1]] = 2
 
-    # Split the boundaries in the field
-    field_with_all = field_with_all[1:-1, 1:-1]
-    
-    #field = get_field(game_state)
-    self.destructible_crate = destructible_crate_count(game_state)
+    return field_with_coins
 
-    return field_with_all
+def features_with_bombs(self, basic_field_map, game_state: dict) -> np.array:
+    """
+    This function provide a field map with basic information and the position of coins
 
-def features_without_bombs(self, game_state: dict) -> np.array:
-    # This is the dict before the game begins and after it ends
-    if game_state is None:
-        return None
-    
-    field_without_bombs = game_state['field']
+    :basic_field_map: a field map with basic information
+    :param game_state:  A dictionary describing the current game board.
+    :return: the field map with the position of bombs and explosion map 
+    """
+    field_with_bombs = basic_field_map
 
-    # Put the position of agent into field (6)
-    agent = game_state['self']
-    agent_position = list(agent)[3]
-    field_without_bombs[agent_position[0],agent_position[1]] = 6
-
-    # Put the position of coins into field (2)
-    coins = game_state['coins']
-    for coin in coins:
-        coin_position = list(coin)
-        field_without_bombs[coin_position[0], coin_position[1]] = 2
-
-    # Split the boundaries in the field
-    field_without_bombs = field_without_bombs[1:-1, 1:-1]
-    
-    #field = get_field(game_state)
-    self.destructible_crate = destructible_crate_count(game_state)
-
-    return field_without_bombs
-
-def features_without_coins(self, game_state: dict) -> np.array:
-    # This is the dict before the game begins and after it ends
-    if game_state is None:
-        return None
-    
-    field_without_coins = game_state['field']
-    
     # Put the position of bombs into field (-2)
     bombs = game_state['bombs']
     for bomb in bombs:
         bomb_position = list(bomb)[0]
-        field_without_coins[bomb_position[0], bomb_position[1]] = -2
-    
-    # Put the position of agent into field (6)
-    agent = game_state['self']
-    agent_position = list(agent)[3]
-    field_without_coins[agent_position[0],agent_position[1]] = 6
-    
+        field_with_bombs[bomb_position[0], bomb_position[1]] = -2
+
     # Put the explosion range into field (-3)
     explosion_map = game_state['explosion_map']
     for x in range(explosion_map.shape[0]):
         for y in range(explosion_map.shape[1]):
             if explosion_map[x, y] > 0:
-                field_without_coins[x,y] = -3
+                field_with_bombs[x,y] = -3
 
-    # Split the boundaries in the field
-    field_without_coins = field_without_coins[1:-1, 1:-1]
-    
-    #field = get_field(game_state)
-    self.destructible_crate = destructible_crate_count(game_state)
-
-    return field_without_coins
-
-'''
-直接在field_with_all的基础上删掉
-def remove_bombs(field_with_all:np.array) -> np.array:
-    # Create a copy of the field_with_all to avoid modifying the original array
-    field_without_bombs = field_with_all.copy()
-    
-    # Remove bombs and explosion information
-    field_without_bombs[field_without_bombs == -2] = 0  # Remove bombs
-    field_without_bombs[field_without_bombs == -3] = 0  # Remove explosion range
-    
-    return field_without_bombs
-
-def remove_coins(field_with_all:np.array) -> np.array:
-    # Create a copy of the field_with_all to avoid modifying the original array
-    field_without_coins = field_with_all.copy()
-    
-    # Remove coins
-    field_without_coins[field_without_coins == 2] = 0  # Remove coins
-    
-    return field_without_coins
-'''
+    return field_with_bombs
 
 def get_cropped_field(game_state: dict, field_with_bombs) -> np.array:
     agent = game_state['self']
