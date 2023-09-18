@@ -44,21 +44,21 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-    # TODO: better Exploration vs exploitation
 
+    eps = linear_epsilon_decay(1, 0.1, EPSILON_DECAY_DURATION, self.model.step)
     features = state_to_features(self, game_state)
-    self.logger.debug(f"Current state: {features}")
-    if np.random.rand() <= EPSILON:
+    self.logger.debug(f"Current state: \n{features}")
+    if np.random.rand() >= eps:
         actions_value = self.model.get_action(features)
         self.logger.debug(f"Output from model: {actions_value}")
         action = ACTIONS[torch.argmax(actions_value)]
         self.logger.debug(f"Query model for action: {action}")
     else:
         action = ACTIONS[np.random.randint(0, len(ACTIONS))]
-        self.logger.debug(f"Choose action at random: {action}")
+        self.logger.debug(f"Choose action at random: {action} with epsilon {eps}")
     return action
 
-def destructible_crate_count(game_state: dict):
+def destructible_crate_count(game_state: dict) -> int:
     player_pos = np.array(game_state["self"][3])
     destructible_crate = 0
     for direction in np.array([[0,1], [0,-1], [1,0], [-1,0]]):
@@ -172,3 +172,16 @@ def get_field(game_state: dict) -> np.array:
         field_with_bombs[bomb_position[0], bomb_position[1]] = -2
 
     return field_with_bombs
+
+def linear_epsilon_decay(epsilon_start, epsilon_end, decay_duration, current_step, min_epsilon=0.05): #TODO: Hyperparameterize min_epsilon
+    """
+
+    Args:
+
+
+    Returns:
+        
+    """
+    decay_rate = (epsilon_start - epsilon_end) / decay_duration
+    epsilon = max(epsilon_start - decay_rate * current_step, min_epsilon)
+    return epsilon

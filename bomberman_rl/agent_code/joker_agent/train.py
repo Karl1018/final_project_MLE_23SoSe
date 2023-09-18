@@ -6,12 +6,13 @@ from typing import List
 
 import events as e
 from .callbacks import *
+from .RewardCurve import *
 
 # This is only an example!
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
-TRANSITION_HISTORY_SIZE = 1000
+TRANSITION_HISTORY_SIZE = 2000
 
 # Events
 CREATES_TO_DESTROY = "PLACEHOLDER"
@@ -28,7 +29,8 @@ def setup_training(self):
     # Example: Setup an array that will note transition tuples
     # (s, a, s', r)
     self.model.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
-
+    self.reward_curve = RewardCurve()
+    self.round = 0
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -48,12 +50,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     :param events: The events that occurred when going from  `old_game_state` to `new_game_state`
     """
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
-    """r1 = (env.x_threshold - abs(x)) / env.x_threshold - 0.8
-    r2 = (env.theta_threshold_radians - abs(theta)) / env.theta_threshold_radians - 0.5
-    r_new = r1 + r2"""
+    
     # Stores the current tansition
     self.model.transitions.append(Transition(state_to_features(self, old_game_state), self_action, state_to_features(self, new_game_state), reward_from_events(self, events)))
-    self.model.learn()
+    self.model.learn_batched()
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -69,11 +69,17 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     :param self: The same object that is passed to all of your callbacks.
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
-    self.model.transitions.append(Transition(state_to_features(self, last_game_state), last_action, None, reward_from_events(self, events)))
-    self.model.learn()
+    #self.model.transitions.append(Transition(state_to_features(self, last_game_state), last_action, None, reward_from_events(self, events)))
+    self.model.learn_batched()
+    #
+    self.model.target_network.load_state_dict(self.model.evaluation_network.state_dict())
+
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
         pickle.dump(self.model, file)
+
+    self.reward_curve.draw(self.round)
+    self.round += 1
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -87,13 +93,13 @@ def reward_from_events(self, events: List[str]) -> int:
         e.COIN_COLLECTED: 10,
         e.KILLED_OPPONENT: 50,
 
-        e.MOVED_RIGHT: 0,
-        e.MOVED_LEFT: 0,
-        e.MOVED_UP: 0,
-        e.MOVED_DOWN: 0,
+        e.MOVED_RIGHT: -1,
+        e.MOVED_LEFT: -1,
+        e.MOVED_UP: -1,
+        e.MOVED_DOWN: -1,
         e.WAITED: -10,
-        e.BOMB_DROPPED: -1,
-        e.INVALID_ACTION: -200,
+        e.BOMB_DROPPED: -10,
+        e.INVALID_ACTION: -20,
         
         e.KILLED_SELF: -500,
         e.GOT_KILLED: -500,
@@ -106,6 +112,7 @@ def reward_from_events(self, events: List[str]) -> int:
             reward_sum += self.destructible_crate * 50
 
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
+    self.reward_curve.record(reward_sum)
     return reward_sum
 
 def calculate_n_step_rewards(transitions: List[Transition], n: int, gamma: float) -> None:
