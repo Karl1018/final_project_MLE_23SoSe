@@ -129,7 +129,7 @@ def features_with_bombs(self, basic_field_map, game_state: dict) -> np.array:
 
     :basic_field_map: a field map with basic information
     :param game_state:  A dictionary describing the current game board.
-    :return: the field map with the position of bombs and explosion map 
+    :return: the field map with the position of enemy agent, bombs and explosion map 
     """
     field_with_bombs = basic_field_map
 
