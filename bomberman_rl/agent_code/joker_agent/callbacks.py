@@ -71,6 +71,7 @@ def destructible_crate_count(game_state: dict) -> int:
                 destructible_crate += 1
     return destructible_crate
 
+# agent:6; other_agent:-6; coin:8; bomb:-8
 def state_to_features(self, game_state: dict) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*
@@ -114,11 +115,11 @@ def features_with_coins(self, basic_field_map, game_state: dict) -> np.array:
     """
     field_with_coins = basic_field_map
 
-    # Put the position of coins into field (2)
+    # Put the position of coins into field (8)
     coins = game_state['coins']
     for coin in coins:
         coin_position = list(coin)
-        field_with_coins[coin_position[0], coin_position[1]] = 2
+        field_with_coins[coin_position[0], coin_position[1]] = 8
 
     return field_with_coins
 
@@ -132,18 +133,25 @@ def features_with_bombs(self, basic_field_map, game_state: dict) -> np.array:
     """
     field_with_bombs = basic_field_map
 
-    # Put the position of bombs into field (-2)
+    # Put the position of enemy agents
+    other_agents = game_state['others']
+    for other_agent in other_agents:
+        other_agent_position = list(other_agent)[3]
+        field_with_bombs[other_agent_position[0], other_agent_position[1]] = -6
+
+    # Put the position of bombs into field (-8)
     bombs = game_state['bombs']
     for bomb in bombs:
         bomb_position = list(bomb)[0]
-        field_with_bombs[bomb_position[0], bomb_position[1]] = -2
+        field_with_bombs[bomb_position[0], bomb_position[1]] = -8
 
     # Put the explosion range into field (-3)
     explosion_map = game_state['explosion_map']
     for x in range(explosion_map.shape[0]):
         for y in range(explosion_map.shape[1]):
-            if explosion_map[x, y] > 0:
-                field_with_bombs[x,y] = -3
+            countdown_timer = explosion_map[x, y]
+            if countdown_timer > 0:
+                field_with_bombs[x, y] = countdown_timer
 
     return field_with_bombs
 
