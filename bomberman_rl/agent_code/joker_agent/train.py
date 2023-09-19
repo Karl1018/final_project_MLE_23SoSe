@@ -115,20 +115,40 @@ def reward_from_events(self, events: List[str]) -> int:
     self.reward_curve.record(reward_sum)
     return reward_sum
 
-def calculate_n_step_rewards(transitions: List[Transition], n: int, gamma: float) -> None:
-    """
-    This function will calculate and then update the rewards of each stored transition (Transition.reward) according to n-step TD Q-learning.
-            
-    :param transitions: Transition list to be updated.
-    :param n: Rewards up to n steps in the future will be considered.
-    :param gamma: Disconting factor.
-    
-    :return: None
-    """
-    for t in range(len(transitions)):
-        n_step_reward = 0
-        for i in range(n):
-            if t + i < len(transitions):
-                n_step_reward += (gamma ** i) * transitions[t + i].reward
-        transitions[t].reward = n_step_reward
 
+def calculate_n_step_td_updates(transitions: List[Transition], n: int, gamma: float) -> np.ndarray:
+    """
+    This function will calculate and apply n-step TD updates to the Q-values of each stored transition according to n-step TD Q-learning.
+
+    :param transitions: Transition list with Q-values to be updated.
+    :param n: Updates up to n steps in the future will be considered.
+    :param gamma: Discount factor.
+
+    :return: NumPy array containing the n-step TD updates for each transition.
+    """
+    n_step_updates = np.zeros(len(transitions))
+    for t in range(len(transitions) - n, n - 1, -1):  # Iterate until the last n-1 transitions
+        n_step_return = 0
+        for i in range(n):
+            n_step_return += (gamma ** i) * transitions[t + i].reward
+        # Apply the n-step TD update to Q-values (assuming Q-values are available)
+        n_step_updates[t] = n_step_return   
+        return n_step_updates
+
+
+#def calculate_n_step_rewards(transitions: List[Transition], n: int, gamma: float) -> None:
+#     """
+#     This function will calculate and then update the rewards of each stored transition (Transition.reward) according to n-step TD Q-learning.
+            
+#     :param transitions: Transition list to be updated.
+#     :param n: Rewards up to n steps in the future will be considered.
+#     :param gamma: Disconting factor.
+    
+#     :return: None
+#     """
+#     for t in range(len(transitions)):
+#         n_step_reward = 0
+#         for i in range(n):
+#             if t + i < len(transitions):
+#                 n_step_reward += (gamma ** i) * transitions[t + i].reward
+#         transitions[t].reward = n_step_reward
