@@ -126,14 +126,12 @@ def calculate_n_step_td_updates(transitions: List[Transition], n: int, gamma: fl
 
     :return: NumPy array containing the n-step TD updates for each transition.
     """
-    n_step_updates = np.zeros(len(transitions))
-    for t in range(len(transitions) - n, n - 1, -1):  # Iterate until the last n-1 transitions
-        n_step_return = 0
-        for i in range(n):
-            n_step_return += (gamma ** i) * transitions[t + i].reward
-        # Apply the n-step TD update to Q-values (assuming Q-values are available)
-        n_step_updates[t] = n_step_return   
-        return n_step_updates
+    n_step_reward = 0
+    for i in range(1, n):
+        old_reward = transitions[-i].reward
+        n_step_reward += (gamma ** (i-1)) * old_reward
+        if i >= n - 1:
+            transitions[i].reward = n_step_reward
 
 
 #def calculate_n_step_rewards(transitions: List[Transition], n: int, gamma: float) -> None:
