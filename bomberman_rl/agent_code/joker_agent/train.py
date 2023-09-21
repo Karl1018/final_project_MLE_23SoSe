@@ -1,21 +1,14 @@
-from collections import namedtuple, deque
-
-import pickle
-import numpy as np
+from collections import namedtuple
 from typing import List
 
+import pickle
 import events as e
-from .callbacks import *
-from .RewardCurve import *
 
-# This is only an example!
+from .callbacks import *
+from .RewardRecorder import RewardRecorder
+
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
-
-TRANSITION_HISTORY_SIZE = 2000
-
-# Events
-CREATES_TO_DESTROY = "PLACEHOLDER"
 
 
 def setup_training(self):
@@ -28,8 +21,8 @@ def setup_training(self):
     """
     # Example: Setup an array that will note transition tuples
     # (s, a, s', r)
-    self.model.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
-    self.reward_curve = RewardCurve()
+    
+    self.reward_recorder = RewardRecorder()
     self.round = 0
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
@@ -49,10 +42,13 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     :param new_game_state: The state the agent is in now.
     :param events: The events that occurred when going from  `old_game_state` to `new_game_state`
     """
-    self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
+    if self.model.step % LOG_EPISODE == 0:
+        self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
     
     # Stores the current tansition
-    self.model.transitions.append(Transition(state_to_features(self, old_game_state), self_action, state_to_features(self, new_game_state), reward_from_events(self, events)))
+    reward = reward_from_events(self, events)
+    self.model.update_n_step_td_reward(reward)
+    self.model.transitions.append(Transition(state_to_features(self, old_game_state), self_action, state_to_features(self, new_game_state), reward))
     self.model.learn_batched()
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -69,18 +65,19 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     :param self: The same object that is passed to all of your callbacks.
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
-    #self.model.transitions.append(Transition(state_to_features(self, last_game_state), last_action, None, reward_from_events(self, events)))
+    reward = reward_from_events(self, events)
+    self.model.update_n_step_td_reward(reward, True)
+    self.model.transitions.append(Transition(state_to_features(self, last_game_state), last_action, NO_STATE_PLACEHOLDER, reward))
     self.model.learn_batched()
-    #
+    #Updates the target network at the end of each round.
     self.model.target_network.load_state_dict(self.model.evaluation_network.state_dict())
+
+    self.reward_recorder.update(self.round)
+    self.round += 1
 
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
         pickle.dump(self.model, file)
-
-    self.reward_curve.draw(self.round)
-    self.round += 1
-
 
 def reward_from_events(self, events: List[str]) -> int:
     """
@@ -90,45 +87,34 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 10,
-        e.KILLED_OPPONENT: 50,
+        e.COIN_COLLECTED: 20,
+        e.KILLED_OPPONENT: 100,
 
         e.MOVED_RIGHT: -1,
         e.MOVED_LEFT: -1,
         e.MOVED_UP: -1,
         e.MOVED_DOWN: -1,
         e.WAITED: -10,
-        e.BOMB_DROPPED: -10,
-        e.INVALID_ACTION: -20,
+        e.BOMB_DROPPED: -1,
+        e.INVALID_ACTION: -30,
         
-        e.KILLED_SELF: -500,
-        e.GOT_KILLED: -500,
+        #e.KILLED_SELF: 0,
+        e.GOT_KILLED: -120,
     }
     reward_sum = 0
+    score_sum = 0
     for event in events:
         if event in game_rewards:
             reward_sum += game_rewards[event]
         if e.BOMB_DROPPED in events:
-            reward_sum += self.destructible_crate * 50
-
-    self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
-    self.reward_curve.record(reward_sum)
-    return reward_sum
-
-def calculate_n_step_rewards(transitions: List[Transition], n: int, gamma: float) -> None:
-    """
-    This function will calculate and then update the rewards of each stored transition (Transition.reward) according to n-step TD Q-learning.
-            
-    :param transitions: Transition list to be updated.
-    :param n: Rewards up to n steps in the future will be considered.
-    :param gamma: Disconting factor.
+            reward_sum += self.destructible_crates * 20 # Reward for destroying crates.
+        if e.COIN_COLLECTED in events:
+            score_sum += 1
+    if self.model.step % LOG_EPISODE == 0:
+        self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
+    # Records rewards and scores for evaluation.
+    self.reward_recorder.record_reward(reward_sum)
+    self.reward_recorder.record_score(score_sum)
     
-    :return: None
-    """
-    for t in range(len(transitions)):
-        n_step_reward = 0
-        for i in range(n):
-            if t + i < len(transitions):
-                n_step_reward += (gamma ** i) * transitions[t + i].reward
-        transitions[t].reward = n_step_reward
+    return reward_sum
 
