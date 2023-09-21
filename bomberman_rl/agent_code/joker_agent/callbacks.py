@@ -151,6 +151,7 @@ def fill_explosion_map(explosions, bombs, field):
 
     return future_explosion_map
 
+# agent:6; other_agent:-6; coin:8; bomb:-8
 def state_to_features(self, game_state: dict) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*
