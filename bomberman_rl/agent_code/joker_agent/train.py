@@ -69,9 +69,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.model.update_n_step_td_reward(reward, True)
     self.model.transitions.append(Transition(state_to_features(self, last_game_state), last_action, NO_STATE_PLACEHOLDER, reward))
     self.model.learn_batched()
-    #Updates the target network at the end of each round.
+    # Updates the target network at the end of each round.
     self.model.target_network.load_state_dict(self.model.evaluation_network.state_dict())
-
     self.reward_recorder.update(self.round)
     self.round += 1
 
@@ -87,8 +86,8 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 20,
-        e.KILLED_OPPONENT: 100,
+        e.COIN_COLLECTED: 100,
+        e.KILLED_OPPONENT: 500,
 
         e.MOVED_RIGHT: -1,
         e.MOVED_LEFT: -1,
@@ -98,16 +97,16 @@ def reward_from_events(self, events: List[str]) -> int:
         e.BOMB_DROPPED: -1,
         e.INVALID_ACTION: -30,
         
-        #e.KILLED_SELF: 0,
-        e.GOT_KILLED: -120,
+        #e.KILLED_SELF: -300,
+        e.GOT_KILLED: -300,
     }
     reward_sum = 0
     score_sum = 0
     for event in events:
         if event in game_rewards:
             reward_sum += game_rewards[event]
-        if e.BOMB_DROPPED in events:
-            reward_sum += self.destructible_crates * 20 # Reward for destroying crates.
+        if e.CRATE_DESTROYED in events:
+            reward_sum += events.count('CRATE_DESTROYED') * 30 # Reward for destroying crates.
         if e.COIN_COLLECTED in events:
             score_sum += 1
     if self.model.step % LOG_EPISODE == 0:

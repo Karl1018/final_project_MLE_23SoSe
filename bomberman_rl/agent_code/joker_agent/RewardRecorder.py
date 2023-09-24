@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-UPDATE_PERIOD = 50 # Period to update the figure.
+UPDATE_PERIOD = 10 # Period to update the figure.
 
 class RewardRecorder():
     """
@@ -43,15 +43,16 @@ class RewardRecorder():
             x = np.arange(0, len(chunk_r), UPDATE_PERIOD)
             # Draws the average rewards over each period.
             fig, ax1 = plt.subplots()
-            ax1.plot(x, reward_averages, color='b', label='reward')
+            ax1.plot(reward_averages, color='b', label='reward')
             ax1.set_xlabel('iterations')
             ax1.set_ylabel('reward')
             ax1.legend()
             # Draws the score rewards over each period.
             ax2 = ax1.twinx()
-            ax2.plot(x, score_averages, color='r', label='score')
+            ax2.plot(score_averages, color='r', label='score')
             ax2.set_ylabel('score')
             ax2.legend()
 
             plt.title('Reward & Score Curve')
             plt.savefig(f"logs/reward_curve.png", bbox_inches='tight', pad_inches=0.4)
+            plt.close()

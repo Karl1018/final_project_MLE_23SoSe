@@ -5,18 +5,18 @@ import torch.nn as nn
 import torch.optim
 
 # Hyper parameters
-LOG_EPISODE = 100 # Period to log.
-TRANSITION_HISTORY_SIZE = 10000 # Memory size for expericence replay.
-BATCH_SIZE = 150
-LEARNING_RATE = 0.0008
+LOG_EPISODE = 50 # Period to log.
+TRANSITION_HISTORY_SIZE = 4000 # Memory size for expericence replay.
+BATCH_SIZE = 1000
+LEARNING_RATE = 0.05
 GAMMA = 0.9 # Discounting factor.
 N = 4 # N-step reward.
-EPSILON_DECAY_DURATION = 3000
+EPSILON_DECAY_DURATION = 1000
 EPSILON_START = 1
 EPSILON_END = 0.02
 
 INDEX_ACTIONS = {'UP': 0, 'RIGHT': 1, 'DOWN': 2, 'LEFT': 3, 'WAIT': 4, 'BOMB': 5}
-NO_STATE_PLACEHOLDER = np.zeros((5, 15, 15)) # Representing next_state at the end of round.
+NO_STATE_PLACEHOLDER = np.zeros((5, 9, 9)) # Representing next_state at the end of round.
 
 device = ("cuda"
     if torch.cuda.is_available()
@@ -28,19 +28,19 @@ class Network(nn.Module):
         super().__init__()
 
         # Layers
-        self.conv1 = nn.Conv2d(5, 32, kernel_size=5, stride=1)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1)
-        self.fc1 = nn.Linear(64 * 9 * 9, 512)
-        self.fc2 = nn.Linear(512, 128)
-        self.fc3 = nn.Linear(128, 6)
+        self.conv1 = nn.Conv2d(4, 32, kernel_size=3, stride=1)
+        self.fc1 = nn.Linear(32 * 7 * 7, 128)
+        self.fc2 = nn.Linear(128, 8)
+        self.fc3 = nn.Linear(10, 6)
 
     def forward(self, x):
         batch_size = x.shape[0]
-        x = nn.functional.relu(self.conv1(x))
-        x = nn.functional.relu(self.conv2(x))
+        handcrafted_features = x[:, -1, 0, :2].view(batch_size, 2)
+        x = nn.functional.relu(self.conv1(x[:, :-1, :, :]))
         x = x.view(batch_size, -1)
         x = nn.functional.relu(self.fc1(x))
         x = nn.functional.relu(self.fc2(x))
+        x = torch.cat((x, handcrafted_features), dim=1)
         return self.fc3(x)
 
 class DQN():
@@ -84,6 +84,7 @@ class DQN():
         equality_mask = torch.all(next_states == torch.tensor(NO_STATE_PLACEHOLDER, device=device).unsqueeze(0), dim=3)
         equality_mask = torch.all(equality_mask, dim=2)
         equality_mask = equality_mask[:, 0]
+        equality_mask = torch.all(next_states == torch.tensor(NO_STATE_PLACEHOLDER, device=device).unsqueeze(0))
 
         Q_next = torch.where(equality_mask, 0, self.target_network(next_states).detach().max())
         Q_target = (rewards + GAMMA**(self.future_rewards + 1) * Q_next).unsqueeze(1)

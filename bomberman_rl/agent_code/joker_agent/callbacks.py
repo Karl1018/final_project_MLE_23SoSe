@@ -6,10 +6,10 @@ import numpy as np
 import torch
 
 from .Model import *
+from .FeatureEngineering import *
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-
 
 def setup(self):
     """
@@ -46,8 +46,9 @@ def act(self, game_state: dict) -> str:
     """
     eps = linear_epsilon_decay(EPSILON_START, EPSILON_END, EPSILON_DECAY_DURATION, self.model.step)
     features = state_to_features(self, game_state)
-    if self.model.step % LOG_EPISODE == 0:
+    if self.model.step % LOG_EPISODE == 0 or not self.train:
         self.logger.debug(f"Current state: \n{features[0]}\n{features[1]}\n{features[2]}\n{features[3]}\n{features[4]}")
+        #self.logger.debug(f"Current state: \n{features}")
     # Epsilon greedy strategy.
     if np.random.rand() >= eps:
         actions_value = self.model.get_action(features)
@@ -60,68 +61,6 @@ def act(self, game_state: dict) -> str:
         if self.model.step % LOG_EPISODE == 0 or not self.train:
             self.logger.debug(f"Choose action at random: {action} with epsilon {eps}")
     return action
-
-def destructible_crates_count(game_state: dict) -> int:
-    """
-    Calculates the number of crates taht will be destroyed if a bomb is dropped by the agent. Used to generate reward to encourage
-    the agent to destroy more crates.
-
-    Args:
-        game_state (dict): State of game.
-
-    Returns:
-        int: Number of crates taht will be destroyed.
-    """
-    player_pos = np.array(game_state["self"][3])
-    destructible_crates = 0
-    for direction in np.array([[0,1], [0,-1], [1,0], [-1,0]]):
-        for distance in range(1, 4):
-            impact_subregion = direction * distance + player_pos
-            pos = game_state['field'][impact_subregion[0], impact_subregion[1]]
-            if pos == -1:
-                break
-            if pos == 1:
-                destructible_crates += 1
-    return destructible_crates
-
-def features_with_coins(basic_field_map, game_state: dict) -> np.array:
-    """
-    This function provide a field map with basic information and the position of coins
-
-    :basic_field_map: a field map with basic information
-    :param game_state:  A dictionary describing the current game board.
-    :return: the field map with the position of coins 
-    """
-    field_with_coins = basic_field_map
-
-    # Put the position of coins into field (1)
-    coins = game_state['coins']
-    for coin in coins:
-        coin_position = list(coin)
-        field_with_coins[coin_position[0], coin_position[1]] = 5
-    return field_with_coins
-
-def features_with_bombs(basic_field_map, game_state: dict) -> np.array:
-    """
-    This function provide a field map with basic information and the position of coins
-
-    :basic_field_map: a field map with basic information
-    :param game_state:  A dictionary describing the current game board.
-    :return: the field map with the position of enemy agent, bombs and explosion map 
-    """
-    field_with_bombs = basic_field_map
-
-    bombs = game_state['bombs']
-    for bomb in bombs:
-        bomb_position = list(bomb)[0]
-        bomb_timer = list(bomb)[1]
-        blast_coords = []
-        blast_coords = bomb.get_blast_coords(game_state['field'])
-        for x in range(blast_coords.shape[0]):
-            for y in range(blast_coords.shape[1]):
-                field_with_bombs[x, y] = bomb_timer
-
-    return field_with_bombs
 
 def fill_explosion_map(explosions, bombs, field):
     '''
@@ -151,49 +90,9 @@ def fill_explosion_map(explosions, bombs, field):
 
     return future_explosion_map
 
-# agent:6; other_agent:-6; coin:8; bomb:-8
-def state_to_features(self, game_state: dict) -> np.array:
-    """
-    *This is not a required function, but an idea to structure your code.*
 
-    Converts the game state to the input of your model, i.e.
-    a feature vector.
 
-    You can find out about the state of the game environment via game_state,
-    which is a dictionary. Consult 'get_state_for_agent' in environment.py to see
-    what it contains.
-
-    :param game_state:  A dictionary describing the current game board.
-    :return: the field map with the position of agents 
-    """
-    # This is the dict before the game begins and after it ends
-    if game_state is None:
-        return None
-    
-    agent = game_state['self']
-    agent_position = list(agent)[3]
-
-    basic_map = game_state['field']
-    
-    empty_map = np.zeros(basic_map.shape)
-
-    agent_map = copy.deepcopy(empty_map)
-    agent_map[agent_position[0],agent_position[1]] = 10
-    coin_map = features_with_coins(copy.deepcopy(empty_map), game_state)
-    
-    future_explosion_map = fill_explosion_map(np.array(game_state["explosion_map"]), game_state["bombs"], basic_map)
-    
-    enemy_map = copy.deepcopy(empty_map)
-    other_agents = game_state['others']
-    for other_agent in other_agents:
-        other_agent_position = list(other_agent)[3]
-        enemy_map[other_agent_position[0], other_agent_position[1]] = 10
-
-    self.destructible_crates = destructible_crates_count(game_state)
-
-    return np.array([basic_map[1:-1, 1:-1].T, coin_map[1:-1, 1:-1].T, future_explosion_map[1:-1, 1:-1].T, agent_map[1:-1, 1:-1].T, enemy_map[1:-1, 1:-1].T])
-
-def linear_epsilon_decay(epsilon_start, epsilon_end, decay_duration, current_step, min_epsilon) -> float:
+def linear_epsilon_decay(epsilon_start, epsilon_end, decay_duration, current_step, min_epsilon=0.02) -> float:
     """
     Generates the epilon with linear decay for greedy training strategy.
 
