@@ -86,19 +86,19 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 100,
-        e.KILLED_OPPONENT: 500,
+        e.COIN_COLLECTED: 10,
+        e.KILLED_OPPONENT: 50,
 
-        e.MOVED_RIGHT: -1,
-        e.MOVED_LEFT: -1,
-        e.MOVED_UP: -1,
-        e.MOVED_DOWN: -1,
+        e.MOVED_RIGHT: 0,
+        e.MOVED_LEFT: 0,
+        e.MOVED_UP: 0,
+        e.MOVED_DOWN: 0,
         e.WAITED: -10,
-        e.BOMB_DROPPED: -1,
-        e.INVALID_ACTION: -30,
+        e.BOMB_DROPPED: 0,
+        e.INVALID_ACTION: -20,
         
-        #e.KILLED_SELF: -300,
-        e.GOT_KILLED: -300,
+        e.KILLED_SELF: -50,
+        e.GOT_KILLED: -50,
     }
     reward_sum = 0
     score_sum = 0
@@ -106,7 +106,7 @@ def reward_from_events(self, events: List[str]) -> int:
         if event in game_rewards:
             reward_sum += game_rewards[event]
         if e.CRATE_DESTROYED in events:
-            reward_sum += events.count('CRATE_DESTROYED') * 30 # Reward for destroying crates.
+            reward_sum += events.count('CRATE_DESTROYED') * 5 # Reward for destroying crates.
         if e.COIN_COLLECTED in events:
             score_sum += 1
     if self.model.step % LOG_EPISODE == 0:
@@ -116,4 +116,3 @@ def reward_from_events(self, events: List[str]) -> int:
     self.reward_recorder.record_score(score_sum)
     
     return reward_sum
-

@@ -47,7 +47,7 @@ def act(self, game_state: dict) -> str:
     eps = linear_epsilon_decay(EPSILON_START, EPSILON_END, EPSILON_DECAY_DURATION, self.model.step)
     features = state_to_features(self, game_state)
     if self.model.step % LOG_EPISODE == 0 or not self.train:
-        self.logger.debug(f"Current state: \n{features[0]}\n{features[1]}\n{features[2]}\n{features[3]}\n{features[4]}")
+        self.logger.debug(f"Current state: \n{features[0]}\n{features[1]}\n{features[2]}\n{features[3]}")
         #self.logger.debug(f"Current state: \n{features}")
     # Epsilon greedy strategy.
     if np.random.rand() >= eps:

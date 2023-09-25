@@ -2,6 +2,8 @@ import numpy as np
 from collections import deque
 #from .callbacks import ACTIONS
 
+
+
 def destructible_crates_count(game_state: dict) -> int:
     """
     Calculates the number of crates taht will be destroyed if a bomb is dropped by the agent. Used to generate reward to encourage
@@ -42,7 +44,7 @@ def get_coin_map(basic_field_map, game_state: dict) -> np.array:
         coin_map[coin_position[0], coin_position[1]] = 5
     return coin_map
 
-def get_explosion_map(field, bombs):
+def get_explosion_map(field, bombs, pos=None):
     """
     This function provide a field map with basic information and the position of bombs
 
@@ -56,11 +58,35 @@ def get_explosion_map(field, bombs):
 
     # Put the explosion range into field 
     directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
-    
-    for bomb in bombs:
-        bomb_position = np.array(bomb[0])
-        bomb_timer = np.array(bomb[1])
-        explosion_map[bomb_position[0], bomb_position[1]] = bomb_timer + 1
+    if pos is None:
+        for bomb in bombs:
+            bomb_position = np.array(bomb[0])
+            bomb_timer = np.array(bomb[1])
+            explosion_map[bomb_position[0], bomb_position[1]] = bomb_timer + 2
+            # x, y = bomb_position
+            # Iterate over the directions
+            for dx, dy in directions:
+                # Initialize the current position
+                current_position_x, current_position_y = bomb_position
+                # Iterate in the direction
+                for _ in range(4): 
+                    # Calculate the next position
+                    next_position_x, next_position_y = current_position_x + dx, current_position_y + dy
+                    # Check if the next position is within the field boundaries
+                    if 0 <= next_position_x < explosion_map.shape[0] and 0 <= next_position_y < explosion_map.shape[1]:
+                        # Check if the next position is a wall (-1)
+                        if field[next_position_x, next_position_y] != 0:
+                            break 
+                        else:
+                            explosion_map[next_position_x, next_position_y] = bomb_timer + 2
+                            # Move to the next position
+                            current_position_x, current_position_y = next_position_x, next_position_y
+                    else:
+                        break  # Stop if outside of boundaries
+    else:
+        bomb_position = pos
+        bomb_timer = 3
+        explosion_map[bomb_position[0], bomb_position[1]] = bomb_timer + 2
         # x, y = bomb_position
         # Iterate over the directions
         for dx, dy in directions:
@@ -76,15 +102,14 @@ def get_explosion_map(field, bombs):
                     if field[next_position_x, next_position_y] == -1:
                         break 
                     else:
-                        explosion_map[next_position_x, next_position_y] = bomb_timer + 1
+                        explosion_map[next_position_x, next_position_y] = bomb_timer + 2
                         # Move to the next position
                         current_position_x, current_position_y = next_position_x, next_position_y
                 else:
                     break  # Stop if outside of boundaries
-    
     return explosion_map
 
-def get_safety_map(field, bombs) -> np.array:
+def get_safety_map(field, agent_position) -> np.array:
     """
     Adds the free tiles with the explosion map. Negative slots stand for danger.
 
@@ -95,12 +120,11 @@ def get_safety_map(field, bombs) -> np.array:
         np.array: safety map
     """
     # Create an explosion map using the explosion_map function
-    exp_map = get_explosion_map(field, bombs)
-    safety_map = field
+    exp_map = get_explosion_map(field, None, agent_position)
+    safety_map = np.copy(field)
 
-    free_mask = (safety_map == 0)
-    safety_map[free_mask] += exp_map[free_mask]
-
+    safety_map[safety_map == 0] = exp_map[safety_map == 0]
+    #print(safety_map.T)
     return safety_map
 
 def crop_map(field, agent_position, padding) -> np.ndarray:
@@ -110,8 +134,8 @@ def crop_map(field, agent_position, padding) -> np.ndarray:
         
     top_left = (agent_position[0] - 4, agent_position[1] - 4)
 
-    for i in range(9):
-        for j in range(9):
+    for j in range(9):
+        for i in range(9):
             x, y = top_left[0] + i, top_left[1] + j
             if 0 <= x < rows and 0 <= y < cols:
                 cropped_region[i, j] = field[x, y]
@@ -141,27 +165,29 @@ def state_to_features(self, game_state: dict) -> np.array:
     field = game_state['field']
     bombs = [(bomb_pos, bomb_timer) for (bomb_pos, bomb_timer) in game_state['bombs']]
     _, _, bombs_left, agent_position = game_state['self']
-
     empty_map = np.zeros(field.shape)
 
+    basic_map = np.copy(field)
     agent_map = np.copy(empty_map)
-    agent_map[agent_position[0],agent_position[1]] = 10
+    agent_map[agent_position[0],agent_position[1]] = 1
     coin_map = get_coin_map(np.copy(empty_map), game_state)
     explosion_map = get_explosion_map(field, bombs)
     enemy_map = np.copy(empty_map)
     other_agents = game_state['others']
     for other_agent in other_agents:
         other_agent_position = list(other_agent)[3]
-        enemy_map[other_agent_position[0], other_agent_position[1]] = 10
+        enemy_map[other_agent_position[0], other_agent_position[1]] = 1
+    safety_map = get_safety_map(field, agent_position)
     #Maps for CNN
-    basic_map = crop_map(np.copy(field), agent_position, -1)
+    basic_map = crop_map(basic_map, agent_position, -1)
     agent_map = crop_map(agent_map, agent_position, 0)
     coin_map = crop_map(coin_map, agent_position, 0)
     explosion_map = crop_map(explosion_map, agent_position, 0)
     enemy_map = crop_map(enemy_map, agent_position, 0)
     #Hand-crafted
+    #safety_map = crop_map(safety_map, agent_position, -1)
     directions = np.array([[-1, 0], [0, 1], [1, 0], [0, -1]])
-    def is_deadend(pos, explosion_map, turns=0):
+    def is_deadend(pos, safety_map, turns=0):
         queue = deque()
         visited = []
         queue.append((list(pos), turns))
@@ -172,9 +198,10 @@ def state_to_features(self, game_state: dict) -> np.array:
                 break
             if pos in visited:
                 continue
-            if turns - 1 - explosion_map[pos[0], pos[1]] == -1:
+            if turns - 1 + safety_map[pos[0], pos[1]] == 5:
                 continue
-            if explosion_map[pos[0], pos[1]] == 0:
+            if safety_map[pos[0], pos[1]] == 0:
+                #print(f"Found way out at {(pos[0], pos[1])}")
                 return False
             visited.append(pos)
             neighborhood = []
@@ -187,14 +214,28 @@ def state_to_features(self, game_state: dict) -> np.array:
                 
         return True
 
+    def get_valid_actions():
+        x = agent_position[0]
+        y = agent_position[1]
+        neighborhood = [(x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y), (x, y)]
+
+        validity = np.zeros(5)
+
+        for i, neighbor in enumerate(neighborhood):
+            validity[i] = 1 if (field[neighbor] == 0 and not neighbor in other_agents) else 0
+        validity[4] = bombs_left
+        return validity
 
     destructible_crates = destructible_crates_count(game_state)
-    safety_info = check_safety(np.copy(field), agent_position, bombs)
+    validity = get_valid_actions()
+    #safety_info = check_safety(np.copy(field), agent_position, bombs)
     #, np.concatenate([destructible_crates], safety_info)
     handcrafted_map = np.zeros_like(basic_map)
     handcrafted_map[0, 0] = destructible_crates
-    handcrafted_map[0, 1] = is_deadend((4, 4), explosion_map)
-    return np.array([basic_map, coin_map, explosion_map, enemy_map, handcrafted_map])
+    for i, item in enumerate(validity):
+        handcrafted_map[0, i + 1] = item
+    #handcrafted_map[0, 5] = is_deadend((4, 4), safety_map)
+    return np.array([basic_map, coin_map, explosion_map, handcrafted_map])
 
 
 
@@ -305,7 +346,7 @@ def state_to_features_abandoned(self, game_state: dict) -> np.array:
     self.destructible_crates = destructible_crates_count(game_state)
 
     # Calculate safety information
-    safety_info = check_safety(np.copy(field), (x, y), bombs)
+    #safety_info = check_safety(np.copy(field), (x, y), bombs)
 
     # Combine all features into a single array
     #print(safety_map)

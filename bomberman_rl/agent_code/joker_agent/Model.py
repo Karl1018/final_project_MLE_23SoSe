@@ -5,18 +5,18 @@ import torch.nn as nn
 import torch.optim
 
 # Hyper parameters
-LOG_EPISODE = 50 # Period to log.
-TRANSITION_HISTORY_SIZE = 4000 # Memory size for expericence replay.
-BATCH_SIZE = 1000
-LEARNING_RATE = 0.05
-GAMMA = 0.9 # Discounting factor.
+LOG_EPISODE = 100 # Period to log.
+TRANSITION_HISTORY_SIZE = 10000 # Memory size for expericence replay.
+BATCH_SIZE = 2500
+LEARNING_RATE = 0.001
+GAMMA = 0.8 # Discounting factor.
 N = 4 # N-step reward.
-EPSILON_DECAY_DURATION = 1000
+EPSILON_DECAY_DURATION = 3000
 EPSILON_START = 1
 EPSILON_END = 0.02
 
 INDEX_ACTIONS = {'UP': 0, 'RIGHT': 1, 'DOWN': 2, 'LEFT': 3, 'WAIT': 4, 'BOMB': 5}
-NO_STATE_PLACEHOLDER = np.zeros((5, 9, 9)) # Representing next_state at the end of round.
+NO_STATE_PLACEHOLDER = np.zeros((4, 9, 9)) # Representing next_state at the end of round.
 
 device = ("cuda"
     if torch.cuda.is_available()
@@ -28,19 +28,19 @@ class Network(nn.Module):
         super().__init__()
 
         # Layers
-        self.conv1 = nn.Conv2d(4, 32, kernel_size=3, stride=1)
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1)
         self.fc1 = nn.Linear(32 * 7 * 7, 128)
-        self.fc2 = nn.Linear(128, 8)
-        self.fc3 = nn.Linear(10, 6)
+        self.fc2 = nn.Linear(134, 64)
+        self.fc3 = nn.Linear(64, 6)
 
     def forward(self, x):
         batch_size = x.shape[0]
-        handcrafted_features = x[:, -1, 0, :2].view(batch_size, 2)
+        handcrafted_features = x[:, -1, 0, :6].view(batch_size, 6)
         x = nn.functional.relu(self.conv1(x[:, :-1, :, :]))
         x = x.view(batch_size, -1)
         x = nn.functional.relu(self.fc1(x))
-        x = nn.functional.relu(self.fc2(x))
         x = torch.cat((x, handcrafted_features), dim=1)
+        x = nn.functional.relu(self.fc2(x))
         return self.fc3(x)
 
 class DQN():
